@@ -1,38 +1,47 @@
 # -*- coding: utf-8 -*-
 """
-YAMEEN - 90s Classic Retro Station Theme
-تصميم كلاسيكي مستوحى من برامج التسعينات بلوحات وبطاقات منفصلة (Retro Station Cards)
+YAMEEN - 90s Retro Station Theme with Robust Asset Resolution
 """
 
+import sys
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# Resolve path correctly in both normal Python and PyInstaller --onefile
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(getattr(sys, '_MEIPASS', os.path.dirname(sys.executable)))
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
 ASSETS_DIR = BASE_DIR / "assets"
 FONTS_DIR = ASSETS_DIR / "fonts"
 CAIRO_FONT_PATH = FONTS_DIR / "Cairo.ttf"
 
-# Colors - 90s Retro Dark Station with Classic Crimson
+# Colors - 90s Classic Retro Station (Physical Cards Aesthetic)
 COLORS = {
-    "bg_main": "#181A1F",          # Deep Workstation Background
-    "card_bg": "#23262F",          # 90s Elevated Card Panel
-    "card_border": "#3A3F4E",      # Classic Beveled Border
-    "card_inset": "#14161A",       # Inset Display Area
+    "bg_main": "#1A1C23",          # Solid Retro Desktop Background
     
-    "crimson_btn": "#990024",      # Classic Retro Crimson
-    "crimson_hover": "#B3002D",    # Retro Crimson Hover
+    # 3D Raised Physical Cards
+    "card_bg": "#262934",          # Raised Card Surface
+    "card_border_light": "#424858",# Top/Left highlight for 3D bevel
+    "card_border_dark": "#12141A", # Bottom/Right shadow
+    "card_inset": "#13151A",       # Sunken/Inset screen area
     
-    "retro_btn": "#2D313C",        # Classic Tactile Button
-    "retro_btn_hover": "#383E4C",  # Tactile Button Hover
-    "retro_btn_border": "#474D5E",
+    # Classic Buttons
+    "crimson_btn": "#A6142E",      # Deep Classic Crimson Red
+    "crimson_hover": "#C51A37",
     
-    "status_on": "#10B981",        # LED Green
-    "status_off": "#64748B",       # LED Gray
+    "retro_btn": "#323746",        # Solid Tactile Button
+    "retro_btn_hover": "#3F4557",
+    "retro_btn_border": "#4B5368",
     
-    "text_main": "#E8EAF0",        # Off-white Classic Text
-    "text_muted": "#8E95A5",       # Retro Label Gray
+    "status_on": "#10B981",        # LED Active
+    "status_off": "#64748B",       # LED Inactive
+    
+    "text_main": "#F1F2F6",        # Clean Retro Off-White
+    "text_muted": "#8C94A6",       # Label Slate Gray
+    "text_tag": "#D1D5DB",
 }
 
 def get_font(size: int = 12, weight: str = "normal"):
-    # Return Cairo font tuple
     return ("Cairo", size, weight)
