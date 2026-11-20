@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-YAMEEN - Main User Interface (Classic Charcoal & Crimson Edition)
-واجهة المستخدم الكلاسيكية الفخمة لبرنامج يمين
+YAMEEN - 90s Retro Station Edition
+واجهة يمين الكلاسيكية المستوحاة من برامج التسعينات (Retro Cards)
 """
 
 import os
@@ -11,12 +11,11 @@ import customtkinter as ctk
 import pyperclip
 
 from ui.theme import COLORS, get_font, CAIRO_FONT_PATH
-from core.bidi_engine import format_arabic_for_display, enhance_arabic_for_clipboard, ar
+from core.scanner import PrecisionScanner
 from core.clipboard_watcher import ClipboardWatcher
-from core.scanner import DynamicScanner
 
 def register_cairo_font():
-    """Registers Cairo font for the process."""
+    """Register Cairo font in Windows GDI for the process."""
     if os.name == 'nt' and CAIRO_FONT_PATH.exists():
         try:
             ctypes.windll.gdi32.AddFontResourceExW(str(CAIRO_FONT_PATH), 0x10, 0)
@@ -29,353 +28,306 @@ class YameenApp(ctk.CTk):
         
         register_cairo_font()
 
-        # Window Appearance
         ctk.set_appearance_mode("dark")
-        self.title("YAMEEN | يمين")
-        self.geometry("740x780")
-        self.minsize(680, 700)
-        self.configure(fg_color=COLORS["bg_dark"])
+        self.title("YAMEEN (يمين) - الإصدار الكلاسيكي")
+        self.geometry("700x720")
+        self.minsize(640, 660)
+        self.configure(fg_color=COLORS["bg_main"])
 
-        self.font_size = 14
-        self.auto_clipboard_active = True
-
+        self.font_size = 13
         self._build_ui()
-        self._refresh_scanner()
+        self._refresh_apps()
 
-        # Start Clipboard Watcher
-        self.watcher = ClipboardWatcher(
-            on_arabic_text_detected=self._on_clipboard_detected,
-            auto_enhance_clipboard=self.auto_clipboard_active
-        )
+        # Start passive clipboard listener
+        self.watcher = ClipboardWatcher(on_text_detected=self._on_clip_text)
         self.watcher.start()
 
     def _build_ui(self):
-        """Builds a classic, clean, elegant desktop layout."""
-
-        # --- 1. TOP HEADER ---
-        header = ctk.CTkFrame(
+        # --- 1. HEADER CARD (بطاقة العنوان) ---
+        header_card = ctk.CTkFrame(
             self,
-            fg_color=COLORS["bg_surface"],
-            corner_radius=8,
-            border_width=1,
-            border_color=COLORS["border"]
+            fg_color=COLORS["card_bg"],
+            corner_radius=4,
+            border_width=2,
+            border_color=COLORS["card_border"]
         )
-        header.pack(fill="x", padx=20, pady=(16, 10))
+        header_card.pack(fill="x", padx=16, pady=(14, 8))
 
-        # Title Row
-        top_row = ctk.CTkFrame(header, fg_color="transparent")
-        top_row.pack(fill="x", padx=18, pady=(14, 4))
+        h_inner = ctk.CTkFrame(header_card, fg_color="transparent")
+        h_inner.pack(fill="x", padx=14, pady=10)
 
-        # Left: Status indicator
+        # Left status badge
         self.lbl_status = ctk.CTkLabel(
-            top_row,
-            text=ar("النظام نشط ومراقب الحافظة يعمل"),
+            h_inner,
+            text="[ ● المراقبة نشطة ]",
             font=get_font(11, "bold"),
-            text_color=COLORS["status_green"],
-            fg_color=COLORS["bg_surface_alt"],
-            corner_radius=6,
-            padx=10,
-            pady=4
+            text_color=COLORS["status_on"],
+            fg_color=COLORS["card_inset"],
+            corner_radius=3,
+            padx=8,
+            pady=3
         )
         self.lbl_status.pack(side="left")
 
-        # Right: Main Title
-        title_lbl = ctk.CTkLabel(
-            top_row,
-            text="YAMEEN | " + ar("يمين"),
+        # Right Title
+        title = ctk.CTkLabel(
+            h_inner,
+            text="YAMEEN | يمين",
             font=get_font(18, "bold"),
-            text_color=COLORS["accent_primary"]
+            text_color=COLORS["crimson_btn"]
         )
-        title_lbl.pack(side="right")
+        title.pack(side="right")
 
-        # Subtitle
-        subtitle = ctk.CTkLabel(
-            header,
-            text=ar("مصحح اتجاه النصوص والأقواس للغة العربية في برامج الذكاء الاصطناعي"),
-            font=get_font(11),
-            text_color=COLORS["text_secondary"],
-            justify="right",
-            anchor="e"
-        )
-        subtitle.pack(fill="x", padx=18, pady=(0, 12))
-
-        # --- 2. DYNAMIC APPS SCANNER SECTION ---
-        scanner_frame = ctk.CTkFrame(
+        # --- 2. APPS MANAGEMENT CARD (كارت فحص وتفعيل البرامج) ---
+        apps_card = ctk.CTkFrame(
             self,
-            fg_color=COLORS["bg_surface"],
-            corner_radius=8,
-            border_width=1,
-            border_color=COLORS["border"]
+            fg_color=COLORS["card_bg"],
+            corner_radius=4,
+            border_width=2,
+            border_color=COLORS["card_border"]
         )
-        scanner_frame.pack(fill="x", padx=20, pady=6)
+        apps_card.pack(fill="x", padx=16, pady=6)
 
-        # Scanner Header
-        sc_header = ctk.CTkFrame(scanner_frame, fg_color="transparent")
-        sc_header.pack(fill="x", padx=16, pady=(10, 6))
+        # Card Title Bar
+        app_bar = ctk.CTkFrame(apps_card, fg_color=COLORS["card_inset"], corner_radius=2)
+        app_bar.pack(fill="x", padx=10, pady=(10, 6))
 
         btn_refresh = ctk.CTkButton(
-            sc_header,
-            text=ar("تحديث الفحص ⟳"),
+            app_bar,
+            text="تحديث الفحص ⟳",
             font=get_font(11),
-            width=90,
-            height=26,
-            fg_color=COLORS["bg_surface_alt"],
-            hover_color=COLORS["bg_surface_hover"],
-            text_color=COLORS["text_secondary"],
+            width=85,
+            height=24,
+            fg_color=COLORS["retro_btn"],
+            hover_color=COLORS["retro_btn_hover"],
             border_width=1,
-            border_color=COLORS["border"],
-            command=self._refresh_scanner
+            border_color=COLORS["retro_btn_border"],
+            corner_radius=2,
+            command=self._refresh_apps
         )
-        btn_refresh.pack(side="left")
+        btn_refresh.pack(side="left", padx=6, pady=4)
 
-        sc_title = ctk.CTkLabel(
-            sc_header,
-            text=ar("التطبيقات النشطة المكتشفة حالياً في النظام:"),
-            font=get_font(12, "bold"),
-            text_color=COLORS["text_primary"]
+        app_title = ctk.CTkLabel(
+            app_bar,
+            text="تطبيقات الذكاء الاصطناعي (AI Desktop Apps)",
+            font=get_font(11, "bold"),
+            text_color=COLORS["text_main"]
         )
-        sc_title.pack(side="right")
+        app_title.pack(side="right", padx=10, pady=4)
 
-        # Apps Container (Dynamic List)
-        self.apps_box = ctk.CTkFrame(scanner_frame, fg_color=COLORS["bg_dark"], corner_radius=6)
-        self.apps_box.pack(fill="x", padx=16, pady=4)
+        # App Grid Box
+        self.apps_container = ctk.CTkFrame(apps_card, fg_color="transparent")
+        self.apps_container.pack(fill="x", padx=10, pady=6)
 
-        # Action Buttons Row
-        action_row = ctk.CTkFrame(scanner_frame, fg_color="transparent")
-        action_row.pack(fill="x", padx=16, pady=(10, 14))
+        # Control Buttons
+        btn_box = ctk.CTkFrame(apps_card, fg_color="transparent")
+        btn_box.pack(fill="x", padx=10, pady=(8, 12))
 
         self.btn_reset = ctk.CTkButton(
-            action_row,
-            text=ar("استرجاع الوضع الافتراضي ↺"),
-            font=get_font(12),
-            fg_color=COLORS["bg_surface_alt"],
-            hover_color=COLORS["bg_surface_hover"],
-            text_color=COLORS["text_secondary"],
+            btn_box,
+            text="استرجاع الوضع الافتراضي",
+            font=get_font(11),
+            width=160,
+            height=32,
+            fg_color=COLORS["retro_btn"],
+            hover_color=COLORS["retro_btn_hover"],
             border_width=1,
-            border_color=COLORS["border"],
-            height=36,
-            width=170,
-            command=self._unpatch_all
+            border_color=COLORS["retro_btn_border"],
+            corner_radius=3,
+            command=self._unpatch
         )
         self.btn_reset.pack(side="left")
 
-        self.btn_inject = ctk.CTkButton(
-            action_row,
-            text=ar("تفعيل الاتجاه لليمين فوراً (Direct Inject) ⚡"),
+        self.btn_apply = ctk.CTkButton(
+            btn_box,
+            text="تفعيل محاذاة اليمين (Safe RTL)",
             font=get_font(12, "bold"),
-            fg_color=COLORS["accent_primary"],
-            hover_color=COLORS["accent_hover"],
-            text_color=COLORS["text_on_accent"],
-            height=36,
-            command=self._patch_all
+            height=32,
+            fg_color=COLORS["crimson_btn"],
+            hover_color=COLORS["crimson_hover"],
+            text_color="#FFFFFF",
+            corner_radius=3,
+            command=self._apply_patch
         )
-        self.btn_inject.pack(side="right", fill="x", expand=True, padx=(12, 0))
+        self.btn_apply.pack(side="right", fill="x", expand=True, padx=(10, 0))
 
-        # --- 3. LIVE READER & CONVERTER ---
-        reader_frame = ctk.CTkFrame(
+        # --- 3. RETRO LIVE READER CARD (كارت القارئ المباشر) ---
+        reader_card = ctk.CTkFrame(
             self,
-            fg_color=COLORS["bg_surface"],
-            corner_radius=8,
-            border_width=1,
-            border_color=COLORS["border"]
+            fg_color=COLORS["card_bg"],
+            corner_radius=4,
+            border_width=2,
+            border_color=COLORS["card_border"]
         )
-        reader_frame.pack(fill="both", expand=True, padx=20, pady=6)
+        reader_card.pack(fill="both", expand=True, padx=16, pady=6)
 
-        # Toolbar
-        toolbar = ctk.CTkFrame(reader_frame, fg_color="transparent")
-        toolbar.pack(fill="x", padx=16, pady=(10, 6))
+        # Reader Toolbar
+        r_bar = ctk.CTkFrame(reader_card, fg_color=COLORS["card_inset"], corner_radius=2)
+        r_bar.pack(fill="x", padx=10, pady=(10, 6))
 
-        # Left tools
+        # Toolbar Buttons
         self.btn_copy = ctk.CTkButton(
-            toolbar,
-            text=ar("نسخ 📋"),
+            r_bar,
+            text="نسخ",
             font=get_font(11),
-            width=65,
-            height=26,
-            fg_color=COLORS["bg_surface_alt"],
-            hover_color=COLORS["bg_surface_hover"],
-            text_color=COLORS["text_primary"],
+            width=50,
+            height=22,
+            fg_color=COLORS["retro_btn"],
+            hover_color=COLORS["retro_btn_hover"],
             border_width=1,
-            border_color=COLORS["border"],
-            command=self._copy_text
+            border_color=COLORS["retro_btn_border"],
+            corner_radius=2,
+            command=self._copy_content
         )
-        self.btn_copy.pack(side="left", padx=3)
+        self.btn_copy.pack(side="left", padx=4, pady=4)
 
         self.btn_clear = ctk.CTkButton(
-            toolbar,
-            text=ar("تفريغ 🗑"),
+            r_bar,
+            text="مسح",
             font=get_font(11),
-            width=65,
-            height=26,
-            fg_color=COLORS["bg_surface_alt"],
-            hover_color=COLORS["bg_surface_hover"],
-            text_color=COLORS["text_muted"],
+            width=50,
+            height=22,
+            fg_color=COLORS["retro_btn"],
+            hover_color=COLORS["retro_btn_hover"],
             border_width=1,
-            border_color=COLORS["border"],
-            command=self._clear_text
+            border_color=COLORS["retro_btn_border"],
+            corner_radius=2,
+            command=self._clear_content
         )
-        self.btn_clear.pack(side="left", padx=3)
+        self.btn_clear.pack(side="left", padx=4, pady=4)
 
-        self.btn_plus = ctk.CTkButton(
-            toolbar,
-            text="A+",
+        btn_plus = ctk.CTkButton(
+            r_bar,
+            text="+",
             font=get_font(11, "bold"),
-            width=36,
-            height=26,
-            fg_color=COLORS["bg_surface_alt"],
-            hover_color=COLORS["bg_surface_hover"],
-            text_color=COLORS["accent_primary"],
+            width=28,
+            height=22,
+            fg_color=COLORS["retro_btn"],
+            hover_color=COLORS["retro_btn_hover"],
             border_width=1,
-            border_color=COLORS["border"],
-            command=self._inc_font
+            border_color=COLORS["retro_btn_border"],
+            corner_radius=2,
+            command=self._font_up
         )
-        self.btn_plus.pack(side="left", padx=3)
+        btn_plus.pack(side="left", padx=2, pady=4)
 
-        self.btn_minus = ctk.CTkButton(
-            toolbar,
-            text="A-",
+        btn_minus = ctk.CTkButton(
+            r_bar,
+            text="-",
             font=get_font(11, "bold"),
-            width=36,
-            height=26,
-            fg_color=COLORS["bg_surface_alt"],
-            hover_color=COLORS["bg_surface_hover"],
-            text_color=COLORS["accent_primary"],
+            width=28,
+            height=22,
+            fg_color=COLORS["retro_btn"],
+            hover_color=COLORS["retro_btn_hover"],
             border_width=1,
-            border_color=COLORS["border"],
-            command=self._dec_font
+            border_color=COLORS["retro_btn_border"],
+            corner_radius=2,
+            command=self._font_down
         )
-        self.btn_minus.pack(side="left", padx=3)
+        btn_minus.pack(side="left", padx=2, pady=4)
 
-        reader_label = ctk.CTkLabel(
-            toolbar,
-            text=ar("القارئ المباشر للنصوص المعدولة (Live Reader)"),
-            font=get_font(12, "bold"),
-            text_color=COLORS["text_primary"]
+        r_title = ctk.CTkLabel(
+            r_bar,
+            text="القارئ الفوري المباشر للنصوص",
+            font=get_font(11, "bold"),
+            text_color=COLORS["text_main"]
         )
-        reader_label.pack(side="right")
+        r_title.pack(side="right", padx=10, pady=4)
 
-        # Text Area
-        self.text_box = ctk.CTkTextbox(
-            reader_frame,
-            fg_color=COLORS["bg_dark"],
-            text_color=COLORS["text_primary"],
+        # Inset Text Display Box
+        self.text_display = ctk.CTkTextbox(
+            reader_card,
+            fg_color=COLORS["card_inset"],
+            text_color=COLORS["text_main"],
             font=get_font(self.font_size),
             border_width=1,
-            border_color=COLORS["border"],
-            corner_radius=6,
+            border_color=COLORS["card_border"],
+            corner_radius=2,
             wrap="word"
         )
-        self.text_box.pack(fill="both", expand=True, padx=16, pady=(4, 8))
+        self.text_display.pack(fill="both", expand=True, padx=10, pady=(2, 10))
 
-        welcome = format_arabic_for_display(
-            "مرحباً بك في أداة يمين (YAMEEN).\n\n"
-            "• عند نسخ أي نص عربي من برامج الذكاء الاصطناعي، سيظهر هنا معدولاً تلقائياً مع ترتيب الأقواس والكلمات الإنجليزية.\n"
-            "• اضغط زر 'تفعيل الاتجاه لليمين' لحقن المحاذاة داخل التطبيقات المفتوحة مباشرة."
+        welcome = (
+            "أهلاً بك في أداة يمين.\n\n"
+            "• عند نسخ أي نص من أي شات ذكاء اصطناعي، سيظهر هنا فوراً وبخط واضح مع إمكانية تكبير وتصغير الخط.\n"
+            "• استخدم زر [تفعيل محاذاة اليمين] لمحاذاة فقرات الردود في النوافذ المفتوحة بأمان وبدون أي تأثير على شكل النصوص."
         )
-        self.text_box.insert("1.0", welcome)
+        self.text_display.insert("1.0", welcome)
 
-        # Options Row
-        options_row = ctk.CTkFrame(reader_frame, fg_color="transparent")
-        options_row.pack(fill="x", padx=16, pady=(0, 10))
-
-        self.clip_toggle = ctk.CTkSwitch(
-            options_row,
-            text=ar("إصلاح الحافظة تلقائياً عند النسخ (Auto-fix Clipboard)"),
-            font=get_font(11),
-            text_color=COLORS["text_secondary"],
-            progress_color=COLORS["accent_primary"],
-            command=self._on_toggle_clip
+        # --- 4. RETRO STATUS BAR ---
+        self.status_bar = ctk.CTkLabel(
+            self,
+            text="الحالة: جاهز للاستخدام | YAMEEN Classic Edition v1.2",
+            font=get_font(10),
+            text_color=COLORS["text_muted"],
+            anchor="e"
         )
-        self.clip_toggle.select()
-        self.clip_toggle.pack(side="right")
+        self.status_bar.pack(fill="x", padx=18, pady=(2, 10))
 
-        # --- 4. FOOTER ---
-        footer = ctk.CTkFrame(self, fg_color="transparent")
-        footer.pack(fill="x", padx=20, pady=(2, 14))
-
-        self.lbl_msg = ctk.CTkLabel(
-            footer,
-            text=ar("جاهز • YAMEEN v1.0.0 (Open Source)"),
-            font=get_font(11),
-            text_color=COLORS["text_muted"]
-        )
-        self.lbl_msg.pack(side="right")
-
-    def _refresh_scanner(self):
-        """Scans running user processes dynamically."""
-        for w in self.apps_box.winfo_children():
+    def _refresh_apps(self):
+        for w in self.apps_container.winfo_children():
             w.destroy()
 
-        apps = DynamicScanner.get_running_processes()
-        if not apps:
-            empty_lbl = ctk.CTkLabel(
-                self.apps_box,
-                text=ar("لا توجد تطبيقات معروفة قيد التشغيل حالياً."),
-                font=get_font(11),
-                text_color=COLORS["text_muted"]
-            )
-            empty_lbl.pack(pady=8)
-            return
-
+        apps = PrecisionScanner.get_running_ai_apps()
         for app in apps:
-            row = ctk.CTkFrame(self.apps_box, fg_color=COLORS["bg_surface_alt"], corner_radius=4)
-            row.pack(fill="x", padx=4, pady=2)
-
-            st_lbl = ctk.CTkLabel(
-                row,
-                text=ar("● قيد التشغيل"),
-                font=get_font(10, "bold"),
-                text_color=COLORS["status_green"]
+            item = ctk.CTkFrame(
+                self.apps_container,
+                fg_color=COLORS["card_inset"],
+                corner_radius=3,
+                border_width=1,
+                border_color=COLORS["card_border"]
             )
-            st_lbl.pack(side="left", padx=10, pady=4)
+            item.pack(fill="x", pady=2)
 
-            name_lbl = ctk.CTkLabel(
-                row,
-                text=f"{app['icon']} {app['name']} ({app['category']})",
+            is_on = app["running"]
+            st_text = "● قيد التشغيل" if is_on else "○ غير مفتوح"
+            st_color = COLORS["status_on"] if is_on else COLORS["status_off"]
+
+            lbl_st = ctk.CTkLabel(item, text=st_text, font=get_font(10, "bold"), text_color=st_color)
+            lbl_st.pack(side="left", padx=10, pady=5)
+
+            lbl_name = ctk.CTkLabel(
+                item,
+                text=f"{app['icon']} {app['name']}",
                 font=get_font(11, "bold"),
-                text_color=COLORS["text_primary"]
+                text_color=COLORS["text_main"]
             )
-            name_lbl.pack(side="right", padx=10, pady=4)
+            lbl_name.pack(side="right", padx=10, pady=5)
 
-    def _patch_all(self):
-        count = DynamicScanner.inject_rtl_to_all_active(remove=False)
+    def _apply_patch(self):
+        count = PrecisionScanner.apply_safe_rtl(remove=False)
         if count > 0:
-            self.lbl_msg.configure(text=ar(f"تم تفعيل YAMEEN بنجاح في {count} نافذة!"), text_color=COLORS["status_green"])
+            self.status_bar.configure(text=f"تم تطبيق المحاذاة الآمنة في {count} نافذة بنجاح.", text_color=COLORS["status_on"])
         else:
-            self.lbl_msg.configure(text=ar("تم فحص النوافذ - جاهز للاستخدام ومراقبة الحافظة"), text_color=COLORS["accent_primary"])
+            self.status_bar.configure(text="النوافذ مفحوصة - المراقبة المباشرة جاهزة.", text_color=COLORS["text_main"])
 
-    def _unpatch_all(self):
-        DynamicScanner.inject_rtl_to_all_active(remove=True)
-        self.lbl_msg.configure(text=ar("تم استرجاع الوضع الافتراضي"), text_color=COLORS["text_secondary"])
+    def _unpatch(self):
+        PrecisionScanner.apply_safe_rtl(remove=True)
+        self.status_bar.configure(text="تم استرجاع التنسيق الأصلي للبرامج.", text_color=COLORS["text_muted"])
 
-    def _on_clipboard_detected(self, raw: str, formatted: str):
-        self.after(0, self._render_new_text, formatted)
+    def _on_clip_text(self, text: str):
+        self.after(0, self._set_text, text)
 
-    def _render_new_text(self, text: str):
-        self.text_box.delete("1.0", "end")
-        self.text_box.insert("1.0", text)
-        self.lbl_msg.configure(text=ar("تم التقاط نص عربي من الحافظة وتنسيقه بنجاح!"), text_color=COLORS["status_green"])
+    def _set_text(self, text: str):
+        self.text_display.delete("1.0", "end")
+        self.text_display.insert("1.0", text)
+        self.status_bar.configure(text="تم استلام نص عربي جديد من الحافظة.", text_color=COLORS["status_on"])
 
-    def _copy_text(self):
-        val = self.text_box.get("1.0", "end-1c")
+    def _copy_content(self):
+        val = self.text_display.get("1.0", "end-1c")
         if val:
-            pyperclip.copy(enhance_arabic_for_clipboard(val))
-            self.lbl_msg.configure(text=ar("تم نسخ النص المعدول للحافظة بنجاح"), text_color=COLORS["status_green"])
+            pyperclip.copy(val)
+            self.status_bar.configure(text="تم نسخ النص إلى الحافظة.", text_color=COLORS["status_on"])
 
-    def _clear_text(self):
-        self.text_box.delete("1.0", "end")
+    def _clear_content(self):
+        self.text_display.delete("1.0", "end")
 
-    def _inc_font(self):
-        if self.font_size < 26:
+    def _font_up(self):
+        if self.font_size < 24:
             self.font_size += 2
-            self.text_box.configure(font=get_font(self.font_size))
+            self.text_display.configure(font=get_font(self.font_size))
 
-    def _dec_font(self):
+    def _font_down(self):
         if self.font_size > 10:
             self.font_size -= 2
-            self.text_box.configure(font=get_font(self.font_size))
-
-    def _on_toggle_clip(self):
-        self.auto_clipboard_active = self.clip_toggle.get() == 1
-        if self.watcher:
-            self.watcher.auto_enhance_clipboard = self.auto_clipboard_active
+            self.text_display.configure(font=get_font(self.font_size))

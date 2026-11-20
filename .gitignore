@@ -8,6 +8,7 @@ __pycache__/
 *.zip
 dist/
 build/
+YAMEEN-v1.0.0-Windows/
 develop-eggs/
 dist/
 downloads/
